@@ -29,10 +29,7 @@ if 'login_time' not in st.session_state:
     st.session_state['login_time'] = None
 
 # --- 파일 경로 설정 ---
-# NOTE: Streamlit 배포 환경에서는 '비용 정리_250830.xlsx' 파일이 현재 스크립트와 같은 경로에 있어야 합니다.
 data_file_path = "비용 정리_250830.xlsx" 
-
-# NOTE: PDF 파일들도 스크립트와 같은 경로에 있어야 합니다.
 pdf_files_map = {
     "손익계산서_2022.pdf": "손익계산서_2022.pdf", "손익계산서_2023.pdf": "손익계산서_2023.pdf", 
     "손익계산서_2024.pdf": "손익계산서_2024.pdf", "재무상태표_2022.pdf": "재무상태표_2022.pdf", 
@@ -43,12 +40,11 @@ pdf_files_map = {
 # 2. 헬퍼 함수 정의
 # ----------------------------------------------------
 
-# --- Google Sheets 설정 및 로깅 함수 (기존 로직 유지) ---
+# --- Google Sheets 설정 및 로깅 함수 (생략 없이 유지) ---
 try:
     SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
     SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
 except Exception:
-    # Secrets이 없을 경우 경고 처리 (로깅 기능만 제외됨)
     SHEET_ID = None
     SHEET_NAME = None
 
@@ -73,8 +69,6 @@ def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
         sh = gc.open_by_key(sheet_id)
         worksheet = sh.worksheet(sheet_name)
         values_to_write = [updated_data.columns.values.tolist()] + updated_data.values.tolist()
-        # gspread.service_account_from_dict를 사용하면 update('A1')은 불가능하며, update_cells를 사용해야 함.
-        # 편의상 update를 유지하되, 만약 실패하면 로깅만 안 되는 것으로 처리.
         worksheet.update('A1', values_to_write, value_input_option='USER_ENTERED')
         load_access_log_from_gsheets.clear()
     except Exception: pass
@@ -101,9 +95,9 @@ def logout():
     st.session_state["login_time"] = None
     st.experimental_rerun()
 
-# --- PDF 표시 함수 (Base64 인코딩 사용 - 초기 버전 방식) ---
+# --- 💡 수정된 PDF 표시 함수: st.components.v1.html 사용 ---
 def display_pdf(file_path):
-    """PDF 파일을 Base64로 인코딩하여 Streamlit에 임베드합니다."""
+    """PDF 파일을 Base64로 인코딩하여 Streamlit의 components.html을 통해 안전하게 임베드합니다."""
     if not os.path.exists(file_path):
         st.warning(f"오류: **{file_path}** 파일을 찾을 수 없습니다. 파일 경로를 확인해주세요.")
         return
@@ -112,15 +106,17 @@ def display_pdf(file_path):
         with open(file_path, "rb") as f:
             base64_pdf = base64.b64encode(f.read()).decode("utf-8")
         
-        pdf_display = f'''
+        pdf_html = f'''
         <iframe src="data:application/pdf;base64,{base64_pdf}"
-        width="100%" height="1000" type="application/pdf"></iframe>
+        width="100%" height="1000" type="application/pdf" style="border: none;"></iframe>
         '''
-        # components.html 대신 st.markdown(unsafe_allow_html=True)을 사용해 더 간단하게 처리 (초기 버전 방식)
-        st.markdown(pdf_display, unsafe_allow_html=True) 
+        
+        # st.markdown 대신 components.html을 사용하여 Chrome 보안 문제를 우회합니다.
+        components.html(pdf_html, height=1000, scrolling=True) 
 
     except Exception as e:
         st.error(f"PDF를 로드하는 중 오류가 발생했습니다: {e}")
+        st.error("파일이 너무 크거나 Base64 인코딩에 실패했을 수 있습니다.")
 
 def color_negative_red(val):
     color = 'red' if isinstance(val, (int, float)) and val < 0 else 'black'
@@ -128,11 +124,10 @@ def color_negative_red(val):
 
 @st.cache_data(ttl=3600) 
 def load_data(file_path):
-    # 기존 데이터 로딩 및 클리닝 로직 유지
+    # 데이터 로딩 로직은 그대로 유지
     if not os.path.exists(file_path):
         st.error(f"오류: 데이터 파일 '{file_path}'을 찾을 수 없습니다.")
         return pd.DataFrame() 
-        
     try:
         df = pd.read_excel(file_path, sheet_name=0, engine="openpyxl")
     except Exception as e:
@@ -162,7 +157,6 @@ def load_data(file_path):
 # --- 로그인 폼 (인증되지 않은 경우에만 호출) ---
 def login_form():
     """로그인 화면을 표시하고 사용자 인증을 처리합니다."""
-    # 로그인 폼이 표시될 때만 페이지 레이아웃을 'centered'로 설정하여 중앙 정렬
     st.set_page_config(layout="centered", initial_sidebar_state="collapsed", page_title="로그인") 
     st.title("📊 재무 대시보드")
     st.subheader("로그인이 필요합니다.")
@@ -187,8 +181,6 @@ def login_form():
                         
                         st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 대시보드를 로드합니다.")
                         log_access(username, "SUCCESS")
-                        
-                        # 초기 버전과 같이 로그인 성공 시 st.rerun()을 호출하여 새 실행을 유도합니다.
                         st.rerun() 
                     else:
                         st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
@@ -198,24 +190,20 @@ def login_form():
 # --- 메인 실행 흐름 (최상단 인증 체크) ---
 # --------------------------------------------------------------------------
 
-# 1. 인증되지 않았으면 로그인 폼을 표시하고, 이후 코드를 실행하지 않음.
+# 1. 인증되지 않았으면 로그인 폼을 표시합니다.
 if not st.session_state['authenticated']:
     login_form()
-    # 주의: 여기서 st.stop()은 제거되었습니다. 
-    # login_form이 호출되었으므로, 이 스크립트 실행은 여기서 끝납니다. 
-    # 로그인 성공 시 st.rerun()이 실행되어 새로운 실행이 시작됩니다.
 
-# 2. 인증 성공 후 (st.session_state['authenticated'] == True)
+# 2. 인증 성공 후 대시보드를 로드합니다.
 else:
-    # 대시보드 레이아웃 설정 (로그인 성공 시에만 wide로 재설정)
     st.set_page_config(layout="wide", page_title="재무 대시보드")
     st.title("📊 주식회사 비에이 재무 대시보드")
     
+    # 캐시된 데이터 로드
     df_main = load_data(data_file_path)
     
     if df_main is None or df_main.empty:
         st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (인증 유지)")
-        # 데이터가 없으면 여기서 멈춥니다.
         st.stop()
     
     # ---------------------
@@ -242,7 +230,6 @@ else:
             st.error(f"오류: {menu}에 해당하는 PDF 파일 정보가 없습니다. 파일 이름을 확인해주세요.")
             st.stop()
         
-        # 드롭다운 선택. 이 선택으로 스크립트가 재실행되어도, 최상단 인증 체크는 통과됩니다.
         year = st.selectbox(
             f"{menu} 연도 선택", 
             years, 
@@ -254,7 +241,7 @@ else:
         st.subheader(f"📄 {menu} ({year}년도)")
         
         if pdf_file:
-            # Base64 방식의 PDF 표시 함수 호출
+            # 💡 수정된 함수 호출: components.html을 사용합니다.
             display_pdf(pdf_file)
         else:
             st.warning(f"경고: {menu}_{year}.pdf 파일 경로를 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
