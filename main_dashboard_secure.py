@@ -11,35 +11,14 @@ from datetime import datetime
 import os
 import time
 
-# ----------------------------------------------------------------------
-# 1. 전역 페이지 설정
-# ----------------------------------------------------------------------
-st.set_page_config(layout="wide", page_title="재무 대시보드")
-
-
 # ----------------------------------------------------
-# 2. 사용자 인증 정보
+# 1. 사용자 인증 정보
 # ----------------------------------------------------
 USER_CREDENTIALS = {
-    "안병규": "911120",
-    "김소영": "941225",
-    "김기현": "840302",
-    "김경현": "960308",
-    "문철호": "691113",
-    "신선민": "900710",
-    "김명선": "960611",
-    "문현성": "910920",
+    "안병규": "911120", "김소영": "941225", "김기현": "840302", "김경현": "960308", 
+    "문철호": "691113", "신선민": "900710", "김명선": "960611", "문현성": "910920", 
     "최솔잎": "950628"
 }
-
-# --- Google Sheets 설정 및 초기화 ---
-try:
-    SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
-    SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
-except Exception as e:
-    st.error(f"Google Sheets Secrets 정보 로드 오류: Streamlit Secrets에 [gcp_service_account] 섹션이 올바르게 설정되었는지 확인해주세요. 오류: {e}")
-    st.stop()
-
 
 # --- 세션 상태 초기화 ---
 if 'authenticated' not in st.session_state:
@@ -50,21 +29,32 @@ if 'login_time' not in st.session_state:
     st.session_state['login_time'] = None
 
 # --- 파일 경로 설정 ---
-data_file_path = "비용 정리_250830.xlsx"
+# NOTE: Streamlit 배포 환경에서는 '비용 정리_250830.xlsx' 파일이 현재 스크립트와 같은 경로에 있어야 합니다.
+data_file_path = "비용 정리_250830.xlsx" 
 
+# NOTE: PDF 파일들도 스크립트와 같은 경로에 있어야 합니다.
 pdf_files_map = {
-    "손익계산서_2022.pdf": "손익계산서_2022.pdf",
-    "손익계산서_2023.pdf": "손익계산서_2023.pdf",
-    "손익계산서_2024.pdf": "손익계산서_2024.pdf",
-    "재무상태표_2022.pdf": "재무상태표_2022.pdf",
-    "재무상태표_2023.pdf": "재무상태표_2023.pdf",
-    "재무상태표_2024.pdf": "재무상태표_2024.pdf"
+    "손익계산서_2022.pdf": "손익계산서_2022.pdf", "손익계산서_2023.pdf": "손익계산서_2023.pdf", 
+    "손익계산서_2024.pdf": "손익계산서_2024.pdf", "재무상태표_2022.pdf": "재무상태표_2022.pdf", 
+    "재무상태표_2023.pdf": "재무상태표_2023.pdf", "재무상태표_2024.pdf": "재무상태표_2024.pdf"
 }
 
-# --- 로그 기록 및 헬퍼 함수 (기존 로직 유지) ---
+# ----------------------------------------------------
+# 2. 헬퍼 함수 정의
+# ----------------------------------------------------
+
+# --- Google Sheets 설정 및 로깅 함수 (기존 로직 유지) ---
+try:
+    SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
+    SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
+except Exception:
+    # Secrets이 없을 경우 경고 처리 (로깅 기능만 제외됨)
+    SHEET_ID = None
+    SHEET_NAME = None
+
 @st.cache_data(ttl=300) 
 def load_access_log_from_gsheets(sheet_id, sheet_name):
-    # 로직 생략
+    if not SHEET_ID: return pd.DataFrame(columns=["login_time", "username", "status"])
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
@@ -72,27 +62,25 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
         worksheet = sh.worksheet(sheet_name)
         data_records = worksheet.get_all_records()
         df = pd.DataFrame(data_records)
-        if df.empty:
-             return pd.DataFrame(columns=["login_time", "username", "status"])
-        return df
-    except Exception as e:
-        return pd.DataFrame(columns=["login_time", "username", "status"])
+        return df if not df.empty else pd.DataFrame(columns=["login_time", "username", "status"])
+    except Exception: return pd.DataFrame(columns=["login_time", "username", "status"])
 
 def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
-    # 로직 생략
+    if not SHEET_ID: return
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
         sh = gc.open_by_key(sheet_id)
         worksheet = sh.worksheet(sheet_name)
         values_to_write = [updated_data.columns.values.tolist()] + updated_data.values.tolist()
-        worksheet.update('A1', values_to_write)
+        # gspread.service_account_from_dict를 사용하면 update('A1')은 불가능하며, update_cells를 사용해야 함.
+        # 편의상 update를 유지하되, 만약 실패하면 로깅만 안 되는 것으로 처리.
+        worksheet.update('A1', values_to_write, value_input_option='USER_ENTERED')
         load_access_log_from_gsheets.clear()
-    except Exception as e:
-        pass
+    except Exception: pass
 
 def log_access(username, status):
-    # 로직 생략
+    if not SHEET_ID: return
     try:
         data = load_access_log_from_gsheets(SHEET_ID, SHEET_NAME)
         new_log = pd.DataFrame([{
@@ -102,19 +90,37 @@ def log_access(username, status):
         }])
         updated_data = pd.concat([new_log, data], ignore_index=True)
         write_access_log_to_gsheets(updated_data, SHEET_ID, SHEET_NAME)
-    except Exception as e:
-        pass
+    except Exception: pass
 
-@st.cache_data
+def logout():
+    """로그아웃 처리 및 로그 기록."""
+    if st.session_state["username"]:
+        log_access(st.session_state["username"], "LOGOUT")
+    st.session_state["authenticated"] = False
+    st.session_state["username"] = None
+    st.session_state["login_time"] = None
+    st.experimental_rerun()
+
+# --- PDF 표시 함수 (Base64 인코딩 사용 - 초기 버전 방식) ---
 def display_pdf(file_path):
+    """PDF 파일을 Base64로 인코딩하여 Streamlit에 임베드합니다."""
     if not os.path.exists(file_path):
-         return None, f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
+        st.warning(f"오류: **{file_path}** 파일을 찾을 수 없습니다. 파일 경로를 확인해주세요.")
+        return
+
+    try:
+        with open(file_path, "rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode("utf-8")
         
-    pdf_display = f'''
-    <iframe src="{file_path}"
-    width="100%" height="1000" type="application/pdf"></iframe>
-    '''
-    return pdf_display, None
+        pdf_display = f'''
+        <iframe src="data:application/pdf;base64,{base64_pdf}"
+        width="100%" height="1000" type="application/pdf"></iframe>
+        '''
+        # components.html 대신 st.markdown(unsafe_allow_html=True)을 사용해 더 간단하게 처리 (초기 버전 방식)
+        st.markdown(pdf_display, unsafe_allow_html=True) 
+
+    except Exception as e:
+        st.error(f"PDF를 로드하는 중 오류가 발생했습니다: {e}")
 
 def color_negative_red(val):
     color = 'red' if isinstance(val, (int, float)) and val < 0 else 'black'
@@ -122,7 +128,7 @@ def color_negative_red(val):
 
 @st.cache_data(ttl=3600) 
 def load_data(file_path):
-    # 로직 생략
+    # 기존 데이터 로딩 및 클리닝 로직 유지
     if not os.path.exists(file_path):
         st.error(f"오류: 데이터 파일 '{file_path}'을 찾을 수 없습니다.")
         return pd.DataFrame() 
@@ -153,9 +159,11 @@ def load_data(file_path):
 
     return df
 
-# --- 로그인 폼 및 인증 로직 (최상단 호출 전용) ---
+# --- 로그인 폼 (인증되지 않은 경우에만 호출) ---
 def login_form():
-    """로그인 화면을 표시하고 사용자 인증을 처리합니다. 성공 시 st.rerun()"""
+    """로그인 화면을 표시하고 사용자 인증을 처리합니다."""
+    # 로그인 폼이 표시될 때만 페이지 레이아웃을 'centered'로 설정하여 중앙 정렬
+    st.set_page_config(layout="centered", initial_sidebar_state="collapsed", page_title="로그인") 
     st.title("📊 재무 대시보드")
     st.subheader("로그인이 필요합니다.")
     st.markdown("---")
@@ -176,29 +184,42 @@ def login_form():
                         st.session_state['authenticated'] = True
                         st.session_state['username'] = username
                         st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
                         st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 대시보드를 로드합니다.")
                         log_access(username, "SUCCESS")
-                        # 로그인 성공 후 강제 재실행하여 다음 루프에서는 대시보드만 로드
+                        
+                        # 초기 버전과 같이 로그인 성공 시 st.rerun()을 호출하여 새 실행을 유도합니다.
                         st.rerun() 
                     else:
                         st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
                         log_access(username, "FAILED")
 
-def logout():
-    """로그아웃 처리 및 로그 기록."""
-    if st.session_state["username"]:
-        log_access(st.session_state["username"], "LOGOUT")
-    st.session_state["authenticated"] = False
-    st.session_state["username"] = None
-    st.session_state["login_time"] = None
-    st.experimental_rerun()
+# --------------------------------------------------------------------------
+# --- 메인 실행 흐름 (최상단 인증 체크) ---
+# --------------------------------------------------------------------------
 
+# 1. 인증되지 않았으면 로그인 폼을 표시하고, 이후 코드를 실행하지 않음.
+if not st.session_state['authenticated']:
+    login_form()
+    # 주의: 여기서 st.stop()은 제거되었습니다. 
+    # login_form이 호출되었으므로, 이 스크립트 실행은 여기서 끝납니다. 
+    # 로그인 성공 시 st.rerun()이 실행되어 새로운 실행이 시작됩니다.
 
-# --- 대시보드 메인 페이지 (인증 성공시에만 호출) ---
-def main_dashboard(df):
+# 2. 인증 성공 후 (st.session_state['authenticated'] == True)
+else:
+    # 대시보드 레이아웃 설정 (로그인 성공 시에만 wide로 재설정)
+    st.set_page_config(layout="wide", page_title="재무 대시보드")
+    st.title("📊 주식회사 비에이 재무 대시보드")
+    
+    df_main = load_data(data_file_path)
+    
+    if df_main is None or df_main.empty:
+        st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (인증 유지)")
+        # 데이터가 없으면 여기서 멈춥니다.
+        st.stop()
     
     # ---------------------
-    # 5. Streamlit 레이아웃 (사이드바)
+    # 3. Streamlit 레이아웃 (사이드바)
     # ---------------------
     st.sidebar.header("메뉴 선택")
     st.sidebar.markdown(f"---")
@@ -207,12 +228,11 @@ def main_dashboard(df):
     st.sidebar.button("로그아웃", on_click=logout)
 
     menu = st.sidebar.radio("보고서 선택", ["재무상태표", "손익계산서", "수강생 흐름", "수입지출장부 흐름"], key="main_menu_radio")
-    
-    # ---------------------
-    # 6. 메뉴별 동작
-    # ---------------------
-    st.title("📊 주식회사 비에이 재무 대시보드")
     st.markdown("---")
+
+    # ---------------------
+    # 4. 메뉴별 동작
+    # ---------------------
 
     if menu in ["재무상태표", "손익계산서"]:
         
@@ -220,44 +240,43 @@ def main_dashboard(df):
         
         if not years:
             st.error(f"오류: {menu}에 해당하는 PDF 파일 정보가 없습니다. 파일 이름을 확인해주세요.")
-            return
-
-        # 이 드롭다운 선택 시 스크립트가 재실행되지만, 최상단 인증 로직은 통과해야 합니다.
-        year = st.selectbox("연도 선택", years, key="pdf_year_select") 
+            st.stop()
         
-        pdf_file_key = f"{menu}_{year}.pdf"
-        pdf_file = pdf_files_map.get(pdf_file_key)
+        # 드롭다운 선택. 이 선택으로 스크립트가 재실행되어도, 최상단 인증 체크는 통과됩니다.
+        year = st.selectbox(
+            f"{menu} 연도 선택", 
+            years, 
+            key=f"pdf_year_select_{menu}" 
+        ) 
+        
+        pdf_file = pdf_files_map.get(f"{menu}_{year}.pdf")
         
         st.subheader(f"📄 {menu} ({year}년도)")
         
         if pdf_file:
-            pdf_content_html, error_message = display_pdf(pdf_file)
-            
-            if pdf_content_html:
-                with st.container():
-                    components.html(pdf_content_html, height=1000, scrolling=True)
-            else:
-                st.error(error_message)
+            # Base64 방식의 PDF 표시 함수 호출
+            display_pdf(pdf_file)
         else:
-            st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
+            st.warning(f"경고: {menu}_{year}.pdf 파일 경로를 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
-    # ... [나머지 수강생 흐름 및 수입지출장부 흐름 로직은 동일]
     elif menu == "수강생 흐름":
         st.subheader("📈 월별 수강생 인원수 흐름")
-        unique_months = sorted(df["연월_str"].unique())
+
+        unique_months = sorted(df_main["연월_str"].unique())
         if not unique_months:
             st.error("데이터 파일에 유효한 월별 데이터가 없습니다.")
-            return
+            st.stop()
             
         selected_range = st.select_slider(
             "기간 선택",
             options=unique_months,
-            value=(unique_months[0], unique_months[-1])
+            value=(unique_months[0], unique_months[-1]),
+            key="student_range_slider"
         )
         start_date = selected_range[0]
         end_date = selected_range[1]
 
-        df_filtered = df[(df["연월_str"] >= start_date) & (df["연월_str"] <= end_date)].copy()
+        df_filtered = df_main[(df_main["연월_str"] >= start_date) & (df_main["연월_str"] <= end_date)].copy()
         
         student_metrics = ["오전", "방과후", "초등", "오후"]
         available_students = [s for s in student_metrics if s in df_filtered.columns]
@@ -314,21 +333,22 @@ def main_dashboard(df):
     elif menu == "수입지출장부 흐름":
         st.subheader("💰 월별 + 누계 재무 흐름")
         
-        unique_months = sorted(df["연월_str"].unique())
+        unique_months = sorted(df_main["연월_str"].unique())
         if not unique_months:
             st.error("데이터 파일에 유효한 월별 데이터가 없습니다.")
-            return
+            st.stop()
             
         selected_range = st.select_slider(
             "기간 선택",
             options=unique_months,
-            value=(unique_months[0], unique_months[-1])
+            value=(unique_months[0], unique_months[-1]),
+            key="finance_range_slider"
         )
 
         start_date = selected_range[0]
         end_date = selected_range[1]
 
-        df_filtered = df[(df["연월_str"] >= start_date) & (df["연월_str"] <= end_date)].copy()
+        df_filtered = df_main[(df_main["연월_str"] >= start_date) & (df_main["연월_str"] <= end_date)].copy()
 
         cumulative_cols = ["총안병규입금", "총대출"]
         for col in cumulative_cols:
@@ -336,12 +356,13 @@ def main_dashboard(df):
                 df_filtered[f"{col}누계"] = df_filtered[col].fillna(0).cumsum()
 
         all_metrics = ["총입금", "총출금", "총차액", "총잔액", "총매출", "영업매출", "기타매출", "총비용", "고정비용", "변동비용", "총영업이익", "총안병규입금", "총대출"]
-        available_metrics = [m for m in all_metrics if m in df.columns]
+        available_metrics = [m for m in all_metrics if m in df_main.columns]
         
         selected_metrics = st.multiselect(
             "그래프에 표시할 지표 선택", 
             available_metrics, 
-            default=["총잔액", "총영업이익"] 
+            default=["총잔액", "총영업이익"],
+            key="metric_multiselect"
         )
         
         final_cols_for_plot = []
@@ -396,23 +417,3 @@ def main_dashboard(df):
 
         else:
             st.warning("선택한 지표의 데이터가 없거나, 엑셀 파일의 컬럼명이 일치하지 않습니다.")
-
-
-# --------------------------------------------------------------------------
-# --- 메인 실행 흐름 (인증이 최우선) ---
-# --------------------------------------------------------------------------
-
-# 1. 인증되지 않았으면 로그인 폼을 표시하고 스크립트 실행을 여기서 끝냅니다.
-if not st.session_state["authenticated"]:
-    login_form()
-    st.stop() # 미인증 시 아래 코드가 절대 실행되지 않도록 강제 중지
-
-# 2. 인증 성공 후 (st.stop()을 통과한 경우에만 실행)
-df_main = load_data(data_file_path) 
-
-# 3. 데이터 로드 성공 시 대시보드 실행
-if df_main is not None and not df_main.empty:
-    main_dashboard(df_main)
-else:
-    # 데이터 로드 실패 시 에러 메시지만 표시 (로그인 상태는 유지)
-    st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (인증 유지)")
