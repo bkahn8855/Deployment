@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components # components 모듈 임포트
 import pandas as pd
 import numpy as np
 import io
@@ -8,7 +9,7 @@ import plotly.express as px
 import base64
 from datetime import datetime
 import os
-import time # 지연 처리를 위해 time 모듈 추가
+import time
 
 # ----------------------------------------------------
 # 1. 사용자 인증 정보 (ID: 이름, PW: 생년월일 6자리)
@@ -125,7 +126,7 @@ def log_access(username, status):
 
 # --- 대시보드 헬퍼 함수 (요청된 코드에서 가져옴) ---
 
-# PDF 표시 함수
+# PDF 표시 함수 (iframe HTML 문자열 반환)
 @st.cache_data
 def display_pdf(file):
     try:
@@ -136,6 +137,7 @@ def display_pdf(file):
         with open(file, "rb") as f:
             base64_pdf = base64.b64encode(f.read()).decode("utf-8")
         
+        # Base64 데이터를 포함한 iframe HTML 문자열 생성
         pdf_display = f'''
         <iframe src="data:application/pdf;base64,{base64_pdf}"
         width="100%" height="1000" type="application/pdf"></iframe>
@@ -185,10 +187,10 @@ def load_data(file_path):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
-    # 수강생 합계 및 누계 계산
+    # 수강생 합계 계산 (누계는 제외)
     if all(s in df.columns for s in student_metrics):
         df['총수강생'] = df[student_metrics].sum(axis=1)
-        df['총수강생누계'] = df['총수강생'].cumsum()
+        # df['총수강생누계'] = df['총수강생'].cumsum() # 누계 계산 로직 제거
 
     return df
 
@@ -285,7 +287,13 @@ def main_dashboard(df):
         
         if pdf_file:
             pdf_content = display_pdf(pdf_file)
-            st.markdown(pdf_content, unsafe_allow_html=True)
+            
+            # components.html을 사용하여 브라우저 보안 문제를 우회 시도
+            if pdf_content.startswith("<iframe"):
+                components.html(pdf_content, height=1000, scrolling=True)
+            else:
+                # 에러 메시지인 경우 (파일 없음 등)
+                st.error(pdf_content)
         else:
             st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
@@ -312,11 +320,11 @@ def main_dashboard(df):
         available_students = [s for s in student_metrics if s in df_filtered.columns]
         
         if "총수강생" in df_filtered.columns:
-            # 1. 누계 포함 선 그래프
+            # 1. 월별 선 그래프
             st.markdown("#### 수강생 인원수 추이")
             
-            # '총수강생누계'를 포함하여 그래프를 그릴 지표 설정
-            line_cols = available_students + ["총수강생", "총수강생누계"]
+            # '총수강생'만 포함 (누계 제외)
+            line_cols = available_students + ["총수강생"]
             
             df_line_plot = pd.melt(
                 df_filtered,
@@ -354,7 +362,8 @@ def main_dashboard(df):
 
             # 3. 데이터 표
             st.markdown("#### 수강생 인원수 데이터")
-            df_table_cols = ["연도", "월"] + [col for col in line_cols if col in df_filtered.columns]
+            # '총수강생누계' 제외
+            df_table_cols = ["연도", "월"] + [col for col in line_cols if col in df_filtered.columns] 
             df_table_students = df_filtered[df_table_cols].copy()
             
             # Ensure that numeric columns are integers before formatting
@@ -460,7 +469,6 @@ def main_dashboard(df):
 
 if st.session_state["authenticated"]:
     # 인증 성공 후 데이터 로드 및 대시보드 표시
-    # load_data 함수는 파일 경로를 기반으로 데이터를 로드하고 전처리합니다.
     df_main = load_data(data_file_path) 
     
     if df_main is not None and not df_main.empty:
