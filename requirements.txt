@@ -1,9 +1,7 @@
-streamlit
+streamlit==1.50.0
 pandas
 numpy
 openpyxl
 plotly
-streamlit-gsheets
 gspread
-google-auth
-oauth2client
+gspread-dataframe
