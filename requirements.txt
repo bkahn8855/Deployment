@@ -1,9 +1,5 @@
 streamlit
 pandas
 numpy
-streamlit-gsheets
 gspread
-openpyxl
-plotly
-oauth2client
-google-auth
+git+https://www.google.com/url?sa=E&source=gmail&q=https://github.com/streamlit/gsheets-connection.git
