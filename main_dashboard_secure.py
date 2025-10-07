@@ -11,8 +11,15 @@ from datetime import datetime
 import os
 import time
 
+# ----------------------------------------------------------------------
+# 1. 전역 페이지 설정 (스크립트 최상단에서 단 한 번만 호출되어야 함)
+# 대시보드를 기준으로 'wide'로 설정합니다.
+# ----------------------------------------------------------------------
+st.set_page_config(layout="wide", page_title="재무 대시보드")
+
+
 # ----------------------------------------------------
-# 1. 사용자 인증 정보 (ID: 이름, PW: 생년월일 6자리)
+# 2. 사용자 인증 정보 (ID: 이름, PW: 생년월일 6자리)
 # ----------------------------------------------------
 USER_CREDENTIALS = {
     "안병규": "911120",
@@ -52,7 +59,6 @@ if 'login_time' not in st.session_state:
 data_file_path = "비용 정리_250830.xlsx"
 
 # PDF 파일 경로 (앱 루트 경로 기준)
-# 이 경로는 Streamlit 앱의 루트 경로에 파일이 있다고 가정합니다.
 pdf_files_map = {
     "손익계산서_2022.pdf": "손익계산서_2022.pdf",
     "손익계산서_2023.pdf": "손익계산서_2023.pdf",
@@ -177,8 +183,7 @@ def load_data(file_path):
         # 숫자형 변환 (변환 불가 시 NaN으로 처리)
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # 연월 열 생성 (Plotly용) - ***여기가 수정된 부분입니다.***
-    # NaN 값 때문에 astype(int) 실패하는 것을 방지하기 위해 .fillna(0)을 추가했습니다.
+    # 연월 열 생성 (Plotly용) - NaN 값 처리하여 astype(int) 오류 방지
     df["연월"] = pd.to_datetime(
         df["연도"].fillna(0).astype(int).astype(str) + 
         '-' + 
@@ -197,7 +202,6 @@ def load_data(file_path):
     # 수강생 합계 계산 (누계 제외 요청)
     if all(s in df.columns for s in student_metrics):
         df['총수강생'] = df[student_metrics].sum(axis=1)
-        # df['총수강생누계'] 계산 로직 제거됨
 
     return df
 
@@ -205,40 +209,39 @@ def load_data(file_path):
 
 def login_form():
     """로그인 화면을 표시하고 사용자 인증을 처리합니다."""
-    # 로그인 화면용 페이지 설정 (대시보드와 다르게 중앙 정렬)
-    st.set_page_config(layout="centered", initial_sidebar_state="collapsed")
+    # set_page_config() 제거 -> 최상단에서 한 번만 설정
     st.title("📊 재무 대시보드")
     st.subheader("로그인이 필요합니다.")
     st.markdown("---")
     
-    login_placeholder = st.empty() # 로그인 메시지를 표시할 공간
+    # 로그인 화면을 중앙에 배치하기 위해 컬럼 사용
+    col1, col2, col3 = st.columns([1, 2, 1]) 
+    
+    with col2: # 중앙 컬럼에 폼 배치
+        with st.container(border=True):
+            st.markdown("<h4 style='text-align: center;'>사용자 인증</h4>", unsafe_allow_html=True)
+            with st.form("login_form", clear_on_submit=True):
+                username = st.text_input("아이디 (이름)", placeholder="예: 홍길동")
+                password = st.text_input("비밀번호 (생년월일 6자리)", type="password", placeholder="예: 900709")
+                login_button = st.form_submit_button("로그인")
 
-    # 중앙에 폼 배치
-    with login_placeholder.container(border=True):
-        st.markdown("<h4 style='text-align: center;'>사용자 인증</h4>", unsafe_allow_html=True)
-        with st.form("login_form", clear_on_submit=True):
-            username = st.text_input("아이디 (이름)", placeholder="예: 홍길동")
-            password = st.text_input("비밀번호 (생년월일 6자리)", type="password", placeholder="예: 900709")
-            login_button = st.form_submit_button("로그인")
-
-            if login_button:
-                # 딕셔너리에서 인증 정보 확인
-                if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
-                    st.session_state['authenticated'] = True
-                    st.session_state['username'] = username
-                    st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # 성공 메시지 표시 후 로그 기록
-                    st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 잠시 후 대시보드로 이동합니다.")
-                    log_access(username, "SUCCESS")
-                    time.sleep(1) # 잠시 대기
-                    # Streamlit 앱을 새로고침하여 대시보드 화면으로 전환
-                    st.rerun()
-                else:
-                    # 실패 메시지 표시 후 로그 기록
-                    st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
-                    log_access(username, "FAILED")
-                    # 실패 시 st.rerun() 대신 다시 폼을 보여줌 (clear_on_submit=True에 의해 입력값은 초기화됨)
+                if login_button:
+                    # 딕셔너리에서 인증 정보 확인
+                    if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+                        st.session_state['authenticated'] = True
+                        st.session_state['username'] = username
+                        st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # 성공 메시지 표시 후 로그 기록
+                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 잠시 후 대시보드로 이동합니다.")
+                        log_access(username, "SUCCESS")
+                        time.sleep(1) # 잠시 대기
+                        # Streamlit 앱을 새로고침하여 대시보드 화면으로 전환
+                        st.rerun()
+                    else:
+                        # 실패 메시지 표시 후 로그 기록
+                        st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
+                        log_access(username, "FAILED")
 
 def logout():
     """로그아웃 처리 및 로그 기록."""
@@ -250,9 +253,9 @@ def logout():
     st.experimental_rerun()
 
 
-# --- 대시보드 메인 페이지 (요청된 코드 통합) ---
+# --- 대시보드 메인 페이지 ---
 def main_dashboard(df):
-    st.set_page_config(layout="wide")
+    # st.set_page_config(layout="wide") # --> 제거됨: 최상단에서 이미 설정됨.
     st.title("📊 주식회사 비에이 재무 대시보드")
     
     # ---------------------
@@ -298,6 +301,8 @@ def main_dashboard(df):
             
             if pdf_content_html:
                 # components.html을 사용하여 iframe을 격리된 환경에 삽입 (Chrome 보안 차단 우회)
+                # height와 width를 iframe 내부 HTML에 이미 지정했으므로, 여기서 다시 지정할 필요는 없지만,
+                # Streamlit의 components.html은 컨테이너 높이를 설정해주는 역할도 하므로 유지합니다.
                 components.html(pdf_content_html, height=1000, scrolling=True)
             else:
                 # 에러 메시지 출력 (파일 없음 등)
@@ -429,8 +434,10 @@ def main_dashboard(df):
                     is_cumulative = True
             
             # 원래 컬럼 추가 (누계가 아닌 경우 또는 누계 외에 월별 값도 보고 싶은 경우)
-            if not is_cumulative and m in df_filtered.columns:
-                final_cols_for_plot.append(m)
+            if m in df_filtered.columns:
+                # 월별 값과 누계 값이 동시에 선택되지 않도록 로직 강화
+                if not is_cumulative or m not in final_cols_for_plot:
+                     final_cols_for_plot.append(m)
 
 
         if final_cols_for_plot:
@@ -459,7 +466,7 @@ def main_dashboard(df):
                 st.plotly_chart(fig, use_container_width=True)
 
                 st.markdown("#### 그래프에 사용된 데이터 표")
-                df_table_cols = ["연도", "월"] + final_cols_for_for_plot
+                df_table_cols = ["연도", "월"] + final_cols_for_plot
                 df_table = df_filtered[df_table_cols].copy()
                 
                 styled_df = df_table.style.applymap(color_negative_red).format(thousands=",")
@@ -473,7 +480,7 @@ def main_dashboard(df):
             st.warning("선택한 지표의 데이터가 없거나, 엑셀 파일의 컬럼명이 일치하지 않습니다.")
 
 
-# --- 메인 실행 흐름 ---
+# --- 메인 실행 흐름 (최상단) ---
 
 if st.session_state["authenticated"]:
     # 인증 성공 후 데이터 로드 및 대시보드 표시
