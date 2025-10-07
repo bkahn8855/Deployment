@@ -14,6 +14,7 @@ import time
 # ----------------------------------------------------------------------
 # 1. 전역 페이지 설정 (스크립트 최상단에서 단 한 번만 호출)
 # ----------------------------------------------------------------------
+# Streamlit은 이 스크립트를 처음부터 끝까지 한 번의 실행으로 봅니다.
 st.set_page_config(layout="wide", page_title="재무 대시보드")
 
 
@@ -33,6 +34,7 @@ USER_CREDENTIALS = {
 }
 
 # --- Google Sheets 설정 및 초기화 ---
+# 이 부분은 변경 없음
 try:
     SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
     SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
@@ -62,12 +64,11 @@ pdf_files_map = {
     "재무상태표_2024.pdf": "재무상태표_2024.pdf"
 }
 
-# --- Google Sheets 및 데이터 로드 함수 (생략 - 기존 로직 유지) ---
+# --- Google Sheets 및 데이터 로드/헬퍼 함수 (기존 로직 유지) ---
 
 @st.cache_data(ttl=300) 
 def load_access_log_from_gsheets(sheet_id, sheet_name):
-    """gspread의 기본 기능을 사용하여 Google Sheets에서 액세스 로그를 로드합니다."""
-    # ... 로직 생략
+    # 로직 생략 (기존과 동일)
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
@@ -82,8 +83,7 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
         return pd.DataFrame(columns=["login_time", "username", "status"])
 
 def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
-    """gspread의 기본 기능을 사용하여 Google Sheets에 데이터프레임을 씁니다."""
-    # ... 로직 생략
+    # 로직 생략 (기존과 동일)
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
@@ -96,8 +96,7 @@ def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
         pass
 
 def log_access(username, status):
-    """Google Sheets에 접속 로그 기록"""
-    # ... 로직 생략
+    # 로직 생략 (기존과 동일)
     try:
         data = load_access_log_from_gsheets(SHEET_ID, SHEET_NAME)
         new_log = pd.DataFrame([{
@@ -110,15 +109,11 @@ def log_access(username, status):
     except Exception as e:
         pass
 
-# --- PDF 표시 헬퍼 함수 ---
-
 @st.cache_data
 def display_pdf(file_path):
-    """
-    PDF 파일을 Base64 인코딩 없이 파일 경로를 사용하여 iframe HTML을 반환합니다.
-    """
-    # 파일 경로 존재 여부 체크를 강화
+    # 로직 생략 (기존과 동일)
     if not os.path.exists(file_path):
+         # 파일 경로 오류 시 None과 에러 메시지 반환
          return None, f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
     pdf_display = f'''
@@ -133,17 +128,16 @@ def color_negative_red(val):
 
 @st.cache_data(ttl=3600) 
 def load_data(file_path):
-    """데이터 로드 및 클리닝"""
-    # ... 로직 생략
+    # 로직 생략 (기존과 동일)
     if not os.path.exists(file_path):
         st.error(f"오류: 데이터 파일 '{file_path}'을 찾을 수 없습니다.")
-        st.stop()
+        return pd.DataFrame() # 빈 데이터프레임 반환
         
     try:
         df = pd.read_excel(file_path, sheet_name=0, engine="openpyxl")
     except Exception as e:
         st.error(f"오류: 엑셀 파일을 읽는 중 문제가 발생했습니다: {e}")
-        st.stop()
+        return pd.DataFrame()
 
     df = df.dropna(subset=["연도", "월"]).copy()
     for col in df.columns:
@@ -160,10 +154,6 @@ def load_data(file_path):
     df["연월_str"] = df["연월"].dt.strftime('%Y-%m')
 
     student_metrics = ["오전", "방과후", "초등", "오후"]
-    for col in student_metrics:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-
     if all(s in df.columns for s in student_metrics):
         df['총수강생'] = df[student_metrics].sum(axis=1)
 
@@ -172,33 +162,30 @@ def load_data(file_path):
 # --- 로그인 폼 및 인증 로직 ---
 def login_form():
     """로그인 화면을 표시하고 사용자 인증을 처리합니다."""
-    # --- 제목 및 설명 출력 (이 부분은 메인 루프가 다시 돌아도 그대로 남아있음) ---
     st.title("📊 재무 대시보드")
     st.subheader("로그인이 필요합니다.")
     st.markdown("---")
     
-    # --- 로그인 폼 중앙 배치 ---
     col1, col2, col3 = st.columns([1, 2, 1]) 
     
     with col2: 
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center;'>사용자 인증</h4>", unsafe_allow_html=True)
             
-            with st.form("login_form", clear_on_submit=True):
+            with st.form("login_form", clear_on_submit=False): # clear_on_submit=False로 변경
                 username = st.text_input("아이디 (이름)", placeholder="예: 홍길동")
                 password = st.text_input("비밀번호 (생년월일 6자리)", type="password", placeholder="예: 900709")
                 login_button = st.form_submit_button("로그인")
 
                 if login_button:
-                    # 인증 로직
                     if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
-                        # **핵심 수정: 상태 설정 후 RERUN 대신, 성공 메시지만 표시하고 Streamlit의 자연스러운 재실행을 기다림**
                         st.session_state['authenticated'] = True
                         st.session_state['username'] = username
                         st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 잠시 후 대시보드로 이동합니다.")
+                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다.")
                         log_access(username, "SUCCESS")
-                        # 폼 내에서는 st.rerun()을 사용하지 않습니다. 
+                        # 로그인 성공 후 강제 재실행
+                        st.rerun() 
                     else:
                         st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
                         log_access(username, "FAILED")
@@ -225,7 +212,7 @@ def main_dashboard(df):
     st.sidebar.markdown(f"**로그인 시각**: {st.session_state['login_time']}")
     st.sidebar.button("로그아웃", on_click=logout)
 
-    menu = st.sidebar.radio("보고서 선택", ["재무상태표", "손익계산서", "수강생 흐름", "수입지출장부 흐름"])
+    menu = st.sidebar.radio("보고서 선택", ["재무상태표", "손익계산서", "수강생 흐름", "수입지출장부 흐름"], key="main_menu_radio")
     
     # ---------------------
     # 6. 메뉴별 동작
@@ -241,7 +228,6 @@ def main_dashboard(df):
             st.error(f"오류: {menu}에 해당하는 PDF 파일 정보가 없습니다. 파일 이름을 확인해주세요.")
             return
 
-        # 연도 선택 위젯
         year = st.selectbox("연도 선택", years, key="pdf_year_select")
         
         pdf_file_key = f"{menu}_{year}.pdf"
@@ -250,30 +236,26 @@ def main_dashboard(df):
         st.subheader(f"📄 {menu} ({year}년도)")
         
         if pdf_file:
-            # PDF 표시 로직
             pdf_content_html, error_message = display_pdf(pdf_file)
             
             if pdf_content_html:
-                # components.html을 사용하여 iframe 삽입
-                # 이 부분이 iframe 내부에 로그인 폼을 띄우는 원인이었을 수 있습니다.
-                # iframe은 기본적으로 독립된 문서이므로, PDF가 로드되지 않으면 빈 화면이 뜰 뿐,
-                # 부모 Streamlit 앱의 내용을 반복하지는 않지만, 간혹 잘못된 렌더링 순서로 충돌을 일으킵니다.
-                components.html(pdf_content_html, height=1000, scrolling=True)
+                # PDF가 로드되는 영역을 명확히 분리
+                with st.container():
+                    components.html(pdf_content_html, height=1000, scrolling=True)
             else:
                 st.error(error_message)
         else:
-            st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다.")
+            st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
-    # ... [나머지 수강생 흐름 및 수입지출장부 흐름 로직은 동일]
+    # ... [나머지 로직은 동일]
     elif menu == "수강생 흐름":
         st.subheader("📈 월별 수강생 인원수 흐름")
-        # --- 그래프 및 데이터프레임 로직 ---
-        # 로직 생략 (기존과 동일)
+
         unique_months = sorted(df["연월_str"].unique())
         if not unique_months:
             st.error("데이터 파일에 유효한 월별 데이터가 없습니다.")
             return
-
+            
         selected_range = st.select_slider(
             "기간 선택",
             options=unique_months,
@@ -336,11 +318,9 @@ def main_dashboard(df):
         else:
             st.warning("수강생 관련 데이터(오전, 방과후, 초등, 오후)가 엑셀 파일에 없거나, 컬럼명이 일치하지 않습니다.")
 
-
     elif menu == "수입지출장부 흐름":
         st.subheader("💰 월별 + 누계 재무 흐름")
-        # --- 그래프 및 데이터프레임 로직 ---
-        # 로직 생략 (기존과 동일)
+        
         unique_months = sorted(df["연월_str"].unique())
         if not unique_months:
             st.error("데이터 파일에 유효한 월별 데이터가 없습니다.")
@@ -427,19 +407,17 @@ def main_dashboard(df):
 
 # --- 메인 실행 흐름 (최상단) ---
 
-# 1. 인증 확인
-if st.session_state["authenticated"]:
-    # 2. 데이터 로드 (캐시 사용)
-    df_main = load_data(data_file_path) 
-    
-    # 3. 데이터 유효성 검사 및 대시보드 실행
-    if df_main is not None and not df_main.empty:
-        # 인증 성공 + 데이터 로드 성공 시에만 대시보드 실행
-        main_dashboard(df_main)
-    else:
-        # 데이터 로드 실패 시 에러만 표시하고, 로그인 상태는 유지
-        st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요.")
-    
-else:
-    # 인증 실패 시 로그인 폼 표시
+# 1. 인증 확인 및 미인증 시 강제 중지
+if not st.session_state["authenticated"]:
+    # 인증되지 않았으면 로그인 폼을 표시하고 스크립트 실행을 여기서 끝냅니다.
     login_form()
+    st.stop() # 미인증 시 아래 대시보드 코드가 실행되지 않도록 강제 중지
+
+# 2. 인증 성공 후 데이터 로드 (이 코드는 st.stop() 위에 있는 경우에만 실행됩니다)
+df_main = load_data(data_file_path) 
+
+# 3. 데이터 유효성 검사 및 대시보드 실행
+if df_main is not None and not df_main.empty:
+    main_dashboard(df_main)
+else:
+    st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (로그인 상태 유지됨)")
