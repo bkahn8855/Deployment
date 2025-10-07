@@ -1,0 +1,5 @@
+[general]
+
+Streamlit Cloud가 안정적인 Python 3.10 버전을 사용하도록 강제 지정합니다.
+현재 사용 중인 라이브러리(streamlit-gsheets)가 Python 3.13을 지원하지 않아 발생하는 문제를 해결합니다.
+python = "3.10"
