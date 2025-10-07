@@ -6,7 +6,7 @@ import io
 import json
 import gspread 
 import plotly.express as px
-import base64
+import base64 # Base64는 사용하지 않지만 임포트는 남겨둡니다.
 from datetime import datetime
 import os
 import time
@@ -52,6 +52,7 @@ if 'login_time' not in st.session_state:
 data_file_path = "비용 정리_250830.xlsx"
 
 # PDF 파일 경로 (앱 루트 경로 기준)
+# 이 경로는 Streamlit 앱의 루트 경로에 파일이 있다고 가정합니다.
 pdf_files_map = {
     "손익계산서_2022.pdf": "손익계산서_2022.pdf",
     "손익계산서_2023.pdf": "손익계산서_2023.pdf",
@@ -124,27 +125,24 @@ def log_access(username, status):
         # st.warning(f"접속 기록 로깅 실패: {e}") # 디버깅용
         pass
 
-# --- 대시보드 헬퍼 함수 (요청된 코드에서 가져옴) ---
+# --- 대시보드 헬퍼 함수 ---
 
-# PDF 표시 함수 (iframe HTML 문자열 반환)
 @st.cache_data
-def display_pdf(file):
-    try:
-        # 파일 존재 여부 확인
-        if not os.path.exists(file):
-            return f"오류: {file} 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
-
-        with open(file, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+def display_pdf(file_path):
+    """
+    PDF 파일을 Base64 인코딩 없이 직접 경로를 사용하여 iframe에 표시합니다.
+    (대용량 파일에 대한 브라우저 보안 제한 우회)
+    """
+    if not os.path.exists(file_path):
+         return f"오류: {file_path} 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
-        # Base64 데이터를 포함한 iframe HTML 문자열 생성
-        pdf_display = f'''
-        <iframe src="data:application/pdf;base64,{base64_pdf}"
-        width="100%" height="1000" type="application/pdf"></iframe>
-        '''
-        return pdf_display
-    except Exception as e:
-        return f"오류: PDF 파일을 표시하는 중 문제가 발생했습니다: {e}"
+    # 파일 경로를 iframe의 src로 직접 사용
+    pdf_display = f'''
+    <iframe src="{file_path}"
+    width="100%" height="1000" type="application/pdf"></iframe>
+    '''
+    # 참고: Streamlit Cloud 환경에서는 루트 경로에 있는 파일에 웹 브라우저가 직접 접근 가능합니다.
+    return pdf_display
 
 # 음수 값을 빨간색으로 표시하는 함수
 def color_negative_red(val):
@@ -187,10 +185,10 @@ def load_data(file_path):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
-    # 수강생 합계 계산 (누계는 제외)
+    # 수강생 합계 계산 (누계 제외 요청)
     if all(s in df.columns for s in student_metrics):
         df['총수강생'] = df[student_metrics].sum(axis=1)
-        # df['총수강생누계'] = df['총수강생'].cumsum() # 누계 계산 로직 제거
+        # df['총수강생누계'] 계산 로직 제거됨
 
     return df
 
@@ -288,7 +286,7 @@ def main_dashboard(df):
         if pdf_file:
             pdf_content = display_pdf(pdf_file)
             
-            # components.html을 사용하여 브라우저 보안 문제를 우회 시도
+            # components.html을 사용하여 iframe을 삽입
             if pdf_content.startswith("<iframe"):
                 components.html(pdf_content, height=1000, scrolling=True)
             else:
