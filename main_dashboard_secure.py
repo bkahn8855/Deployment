@@ -6,7 +6,7 @@ import io
 import json
 import gspread 
 import plotly.express as px
-import base64 # Base64 임포트 필수
+import base64 
 from datetime import datetime
 import os
 import time
@@ -130,28 +130,21 @@ def log_access(username, status):
 @st.cache_data
 def display_pdf(file_path):
     """
-    PDF 파일을 Base64로 인코딩하여 iframe에 표시합니다.
-    Streamlit Cloud 환경에서 가장 안정적인 방법입니다.
+    PDF 파일을 Base64 인코딩 없이 파일 경로를 사용하여 iframe HTML을 반환합니다.
+    Streamlit Cloud 환경에서 정적 파일 접근 방식을 사용합니다.
     """
     if not os.path.exists(file_path):
          # 파일이 없을 경우 에러 메시지를 반환
          return None, f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
-    try:
-        # 1. PDF 파일을 이진 모드로 읽고 Base64로 인코딩
-        with open(file_path, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-
-        # 2. iframe에 Data URL 형식으로 삽입
-        pdf_display = f'''
-        <iframe src="data:application/pdf;base64,{base64_pdf}"
-        width="100%" height="1000" type="application/pdf"></iframe>
-        '''
-        # HTML 문자열 반환
-        return pdf_display, None
-    except Exception as e:
-        return None, f"오류: PDF 파일을 읽거나 인코딩하는 중 문제가 발생했습니다: {e}"
-
+    # 파일 경로를 iframe의 src로 직접 사용
+    # Streamlit Cloud는 루트 경로에 있는 파일에 웹 접근을 허용합니다.
+    pdf_display = f'''
+    <iframe src="{file_path}"
+    width="100%" height="1000" type="application/pdf"></iframe>
+    '''
+    # HTML 문자열 반환
+    return pdf_display, None
 
 # 음수 값을 빨간색으로 표시하는 함수
 def color_negative_red(val):
@@ -185,7 +178,7 @@ def load_data(file_path):
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
     # 연월 열 생성 (Plotly용)
-    df["연월"] = pd.to_datetime(df["연도"].astype(int).astype(str) + '-' + df["월"].astype(int).astype(str).str.zfill(2), format="%Y-%m")
+    df["연월"] = pd.to_datetime(df["연도"].astype(int).astype(str) + '-' + df["월"].astype(int).astype(str).zfill(2), format="%Y-%m")
     df["연월_str"] = df["연월"].dt.strftime('%Y-%m')
 
     # 수강생 관련 컬럼을 정수형으로 변환
@@ -293,14 +286,15 @@ def main_dashboard(df):
         st.subheader(f"📄 {menu} ({year}년도)")
         
         if pdf_file:
-            # Base64 인코딩된 HTML 내용과 에러 메시지를 함께 받음
+            # Base64 인코딩을 제거하고 파일 경로를 사용하는 방식으로 변경
             pdf_content_html, error_message = display_pdf(pdf_file)
             
             if pdf_content_html:
-                # HTML 코드를 Streamlit에 삽입하여 PDF 뷰어 표시
-                st.markdown(pdf_content_html, unsafe_allow_html=True)
+                # components.html을 사용하여 iframe을 격리된 환경에 삽입
+                # Base64 사용 시 발생하는 URL 길이 제한 및 Chrome 차단 문제를 우회
+                components.html(pdf_content_html, height=1000, scrolling=True)
             else:
-                # 에러 메시지 출력 (파일 없음, 인코딩 오류 등)
+                # 에러 메시지 출력 (파일 없음 등)
                 st.error(error_message)
         else:
             st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
