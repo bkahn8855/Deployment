@@ -12,9 +12,8 @@ import os
 import time
 
 # ----------------------------------------------------------------------
-# 1. 전역 페이지 설정 (스크립트 최상단에서 단 한 번만 호출)
+# 1. 전역 페이지 설정
 # ----------------------------------------------------------------------
-# Streamlit은 이 스크립트를 처음부터 끝까지 한 번의 실행으로 봅니다.
 st.set_page_config(layout="wide", page_title="재무 대시보드")
 
 
@@ -34,7 +33,6 @@ USER_CREDENTIALS = {
 }
 
 # --- Google Sheets 설정 및 초기화 ---
-# 이 부분은 변경 없음
 try:
     SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
     SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
@@ -51,7 +49,6 @@ if 'username' not in st.session_state:
 if 'login_time' not in st.session_state:
     st.session_state['login_time'] = None
 
-
 # --- 파일 경로 설정 ---
 data_file_path = "비용 정리_250830.xlsx"
 
@@ -64,11 +61,10 @@ pdf_files_map = {
     "재무상태표_2024.pdf": "재무상태표_2024.pdf"
 }
 
-# --- Google Sheets 및 데이터 로드/헬퍼 함수 (기존 로직 유지) ---
-
+# --- 로그 기록 및 헬퍼 함수 (기존 로직 유지) ---
 @st.cache_data(ttl=300) 
 def load_access_log_from_gsheets(sheet_id, sheet_name):
-    # 로직 생략 (기존과 동일)
+    # 로직 생략
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
@@ -83,7 +79,7 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
         return pd.DataFrame(columns=["login_time", "username", "status"])
 
 def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
-    # 로직 생략 (기존과 동일)
+    # 로직 생략
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
@@ -96,7 +92,7 @@ def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
         pass
 
 def log_access(username, status):
-    # 로직 생략 (기존과 동일)
+    # 로직 생략
     try:
         data = load_access_log_from_gsheets(SHEET_ID, SHEET_NAME)
         new_log = pd.DataFrame([{
@@ -111,9 +107,7 @@ def log_access(username, status):
 
 @st.cache_data
 def display_pdf(file_path):
-    # 로직 생략 (기존과 동일)
     if not os.path.exists(file_path):
-         # 파일 경로 오류 시 None과 에러 메시지 반환
          return None, f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
     pdf_display = f'''
@@ -128,10 +122,10 @@ def color_negative_red(val):
 
 @st.cache_data(ttl=3600) 
 def load_data(file_path):
-    # 로직 생략 (기존과 동일)
+    # 로직 생략
     if not os.path.exists(file_path):
         st.error(f"오류: 데이터 파일 '{file_path}'을 찾을 수 없습니다.")
-        return pd.DataFrame() # 빈 데이터프레임 반환
+        return pd.DataFrame() 
         
     try:
         df = pd.read_excel(file_path, sheet_name=0, engine="openpyxl")
@@ -159,9 +153,9 @@ def load_data(file_path):
 
     return df
 
-# --- 로그인 폼 및 인증 로직 ---
+# --- 로그인 폼 및 인증 로직 (최상단 호출 전용) ---
 def login_form():
-    """로그인 화면을 표시하고 사용자 인증을 처리합니다."""
+    """로그인 화면을 표시하고 사용자 인증을 처리합니다. 성공 시 st.rerun()"""
     st.title("📊 재무 대시보드")
     st.subheader("로그인이 필요합니다.")
     st.markdown("---")
@@ -172,7 +166,7 @@ def login_form():
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center;'>사용자 인증</h4>", unsafe_allow_html=True)
             
-            with st.form("login_form", clear_on_submit=False): # clear_on_submit=False로 변경
+            with st.form("login_form", clear_on_submit=False):
                 username = st.text_input("아이디 (이름)", placeholder="예: 홍길동")
                 password = st.text_input("비밀번호 (생년월일 6자리)", type="password", placeholder="예: 900709")
                 login_button = st.form_submit_button("로그인")
@@ -182,9 +176,9 @@ def login_form():
                         st.session_state['authenticated'] = True
                         st.session_state['username'] = username
                         st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다.")
+                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 대시보드를 로드합니다.")
                         log_access(username, "SUCCESS")
-                        # 로그인 성공 후 강제 재실행
+                        # 로그인 성공 후 강제 재실행하여 다음 루프에서는 대시보드만 로드
                         st.rerun() 
                     else:
                         st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
@@ -200,7 +194,7 @@ def logout():
     st.experimental_rerun()
 
 
-# --- 대시보드 메인 페이지 ---
+# --- 대시보드 메인 페이지 (인증 성공시에만 호출) ---
 def main_dashboard(df):
     
     # ---------------------
@@ -228,7 +222,8 @@ def main_dashboard(df):
             st.error(f"오류: {menu}에 해당하는 PDF 파일 정보가 없습니다. 파일 이름을 확인해주세요.")
             return
 
-        year = st.selectbox("연도 선택", years, key="pdf_year_select")
+        # 이 드롭다운 선택 시 스크립트가 재실행되지만, 최상단 인증 로직은 통과해야 합니다.
+        year = st.selectbox("연도 선택", years, key="pdf_year_select") 
         
         pdf_file_key = f"{menu}_{year}.pdf"
         pdf_file = pdf_files_map.get(pdf_file_key)
@@ -239,7 +234,6 @@ def main_dashboard(df):
             pdf_content_html, error_message = display_pdf(pdf_file)
             
             if pdf_content_html:
-                # PDF가 로드되는 영역을 명확히 분리
                 with st.container():
                     components.html(pdf_content_html, height=1000, scrolling=True)
             else:
@@ -247,10 +241,9 @@ def main_dashboard(df):
         else:
             st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
-    # ... [나머지 로직은 동일]
+    # ... [나머지 수강생 흐름 및 수입지출장부 흐름 로직은 동일]
     elif menu == "수강생 흐름":
         st.subheader("📈 월별 수강생 인원수 흐름")
-
         unique_months = sorted(df["연월_str"].unique())
         if not unique_months:
             st.error("데이터 파일에 유효한 월별 데이터가 없습니다.")
@@ -405,19 +398,21 @@ def main_dashboard(df):
             st.warning("선택한 지표의 데이터가 없거나, 엑셀 파일의 컬럼명이 일치하지 않습니다.")
 
 
-# --- 메인 실행 흐름 (최상단) ---
+# --------------------------------------------------------------------------
+# --- 메인 실행 흐름 (인증이 최우선) ---
+# --------------------------------------------------------------------------
 
-# 1. 인증 확인 및 미인증 시 강제 중지
+# 1. 인증되지 않았으면 로그인 폼을 표시하고 스크립트 실행을 여기서 끝냅니다.
 if not st.session_state["authenticated"]:
-    # 인증되지 않았으면 로그인 폼을 표시하고 스크립트 실행을 여기서 끝냅니다.
     login_form()
-    st.stop() # 미인증 시 아래 대시보드 코드가 실행되지 않도록 강제 중지
+    st.stop() # 미인증 시 아래 코드가 절대 실행되지 않도록 강제 중지
 
-# 2. 인증 성공 후 데이터 로드 (이 코드는 st.stop() 위에 있는 경우에만 실행됩니다)
+# 2. 인증 성공 후 (st.stop()을 통과한 경우에만 실행)
 df_main = load_data(data_file_path) 
 
-# 3. 데이터 유효성 검사 및 대시보드 실행
+# 3. 데이터 로드 성공 시 대시보드 실행
 if df_main is not None and not df_main.empty:
     main_dashboard(df_main)
 else:
-    st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (로그인 상태 유지됨)")
+    # 데이터 로드 실패 시 에러 메시지만 표시 (로그인 상태는 유지)
+    st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (인증 유지)")
