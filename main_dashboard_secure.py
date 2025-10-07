@@ -166,7 +166,7 @@ def load_data(file_path):
         st.error(f"오류: 엑셀 파일을 읽는 중 문제가 발생했습니다: {e}")
         st.stop()
 
-    # 결측 연도/월 제거
+    # 결측 연도/월 제거 (최소한의 행 보장)
     df = df.dropna(subset=["연도", "월"]).copy()
 
     # 데이터 클리닝 및 타입 변환 (콤마 제거 후 숫자형으로)
@@ -177,14 +177,21 @@ def load_data(file_path):
         # 숫자형 변환 (변환 불가 시 NaN으로 처리)
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # 연월 열 생성 (Plotly용)
-    df["연월"] = pd.to_datetime(df["연도"].astype(int).astype(str) + '-' + df["월"].astype(int).astype(str).zfill(2), format="%Y-%m")
+    # 연월 열 생성 (Plotly용) - ***여기가 수정된 부분입니다.***
+    # NaN 값 때문에 astype(int) 실패하는 것을 방지하기 위해 .fillna(0)을 추가했습니다.
+    df["연월"] = pd.to_datetime(
+        df["연도"].fillna(0).astype(int).astype(str) + 
+        '-' + 
+        df["월"].fillna(0).astype(int).astype(str).str.zfill(2), 
+        format="%Y-%m"
+    )
     df["연월_str"] = df["연월"].dt.strftime('%Y-%m')
 
     # 수강생 관련 컬럼을 정수형으로 변환
     student_metrics = ["오전", "방과후", "초등", "오후"]
     for col in student_metrics:
         if col in df.columns:
+            # 수강생 수 역시 안전하게 변환
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
     # 수강생 합계 계산 (누계 제외 요청)
@@ -290,8 +297,7 @@ def main_dashboard(df):
             pdf_content_html, error_message = display_pdf(pdf_file)
             
             if pdf_content_html:
-                # components.html을 사용하여 iframe을 격리된 환경에 삽입
-                # Base64 사용 시 발생하는 URL 길이 제한 및 Chrome 차단 문제를 우회
+                # components.html을 사용하여 iframe을 격리된 환경에 삽입 (Chrome 보안 차단 우회)
                 components.html(pdf_content_html, height=1000, scrolling=True)
             else:
                 # 에러 메시지 출력 (파일 없음 등)
@@ -453,7 +459,7 @@ def main_dashboard(df):
                 st.plotly_chart(fig, use_container_width=True)
 
                 st.markdown("#### 그래프에 사용된 데이터 표")
-                df_table_cols = ["연도", "월"] + final_cols_for_plot
+                df_table_cols = ["연도", "월"] + final_cols_for_for_plot
                 df_table = df_filtered[df_table_cols].copy()
                 
                 styled_df = df_table.style.applymap(color_negative_red).format(thousands=",")
