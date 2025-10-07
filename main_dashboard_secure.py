@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import io
 import json
-# 기존: from streamlit_gsheets import GSheetsConnection (제거됨)
-import gspread # gspread 임포트
-from gspread_dataframe import get_dataframe, set_with_dataframe # gspread-dataframe 임포트
+import gspread 
+# gspread-dataframe의 임포트 오류 해결: get_dataframe 대신 get_dataframe_from_sheet 사용
+from gspread_dataframe import get_dataframe_from_sheet, set_with_dataframe 
 from datetime import datetime
 
 # --- 설정 및 초기화 ---
@@ -13,13 +13,12 @@ st.set_page_config(layout="wide")
 
 # Streamlit Secrets에서 Google Sheets 설정 가져오기
 try:
-    # Google Sheets 연동에 필요한 시트 ID와 이름은 Secrets에서 직접 가져옵니다.
-    # 연결 객체(st.connection) 대신 gspread 인증 정보를 직접 사용합니다.
-    # secrets.toml의 [gsheets] 섹션에서 정보를 로드합니다.
-    SHEET_ID = st.secrets["gsheets"]["sheet_id"]
-    SHEET_NAME = st.secrets["gsheets"]["sheet_name"]
+    # secrets.toml의 [gcp_service_account] 섹션에서 정보를 로드합니다.
+    SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
+    SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
 except Exception as e:
-    st.error(f"Google Sheets Secrets 정보 로드 오류: Streamlit Secrets에 [gsheets] 섹션이 올바르게 설정되었는지 확인해주세요. 오류: {e}")
+    # Google Sheets Secrets 정보 로드 오류 발생 시 사용자에게 알림
+    st.error(f"Google Sheets Secrets 정보 로드 오류: Streamlit Secrets에 [gcp_service_account] 섹션이 올바르게 설정되었는지 확인해주세요. 오류: {e}")
     st.stop()
 
 # 인증 정보 (나중에 구글 시트로 관리)
@@ -51,8 +50,8 @@ pdf_files = {
 def load_access_log_from_gsheets(sheet_id, sheet_name):
     """gspread를 사용하여 Google Sheets에서 액세스 로그를 로드합니다."""
     try:
-        # Streamlit Secrets에서 인증 정보 로드
-        creds = st.secrets["gsheets"]
+        # Streamlit Secrets에서 인증 정보 로드 (gcp_service_account 섹션 사용)
+        creds = st.secrets["gcp_service_account"]
         
         # gspread 인증 및 연결
         gc = gspread.service_account_from_dict(creds)
@@ -61,9 +60,8 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
         sh = gc.open_by_key(sheet_id)
         worksheet = sh.worksheet(sheet_name)
         
-        # 워크시트 내용을 DataFrame으로 변환 (헤더는 첫 번째 행)
-        # dtype=str로 설정하여 모든 데이터를 문자열로 가져옵니다.
-        df = get_dataframe(worksheet, header=1, dtype=str)
+        # 워크시트 내용을 DataFrame으로 변환 (함수 이름 수정 반영)
+        df = get_dataframe_from_sheet(worksheet, header=1, dtype=str)
         
         # DataFrame의 인덱스를 0부터 시작하도록 리셋 (옵션)
         df.index = range(len(df))
@@ -76,8 +74,8 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
 def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
     """gspread를 사용하여 Google Sheets에 데이터프레임을 씁니다."""
     try:
-        # Streamlit Secrets에서 인증 정보 로드
-        creds = st.secrets["gsheets"]
+        # Streamlit Secrets에서 인증 정보 로드 (gcp_service_account 섹션 사용)
+        creds = st.secrets["gcp_service_account"]
         
         # gspread 인증 및 연결
         gc = gspread.service_account_from_dict(creds)
@@ -209,7 +207,7 @@ def main_dashboard(data, sheet_names):
                                 mime="application/pdf"
                             )
                     except FileNotFoundError:
-                        st.warning(f"경고: PDF 파일 '{key}'을 찾을 수 없습니다.")
+                        st.warning(f"경고: PDF 파일 '{key}'을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
         
         with col2:
@@ -226,7 +224,7 @@ def main_dashboard(data, sheet_names):
                                 mime="application/pdf"
                             )
                     except FileNotFoundError:
-                        st.warning(f"경고: PDF 파일 '{key}'을 찾을 수 없습니다.")
+                        st.warning(f"경고: PDF 파일 '{key}'을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
     else:
         st.error("선택한 시트의 데이터를 찾을 수 없습니다.")
