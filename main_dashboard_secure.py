@@ -1,5 +1,5 @@
 import streamlit as st
-import streamlit.components.v1 as components # components 모듈 임포트
+import streamlit.components.v1 as components 
 import pandas as pd
 import numpy as np
 import io
@@ -9,11 +9,10 @@ import plotly.express as px
 import base64 
 from datetime import datetime
 import os
-import time
+# import time # time.sleep 제거를 위해 주석 처리하거나 제거
 
 # ----------------------------------------------------------------------
-# 1. 전역 페이지 설정 (스크립트 최상단에서 단 한 번만 호출되어야 함)
-# 대시보드를 기준으로 'wide'로 설정합니다.
+# 1. 전역 페이지 설정 (스크립트 최상단에서 단 한 번만 호출)
 # ----------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="재무 대시보드")
 
@@ -34,14 +33,10 @@ USER_CREDENTIALS = {
 }
 
 # --- Google Sheets 설정 및 초기화 ---
-
-# Streamlit Secrets에서 Google Sheets 설정 가져오기
 try:
-    # [gcp_service_account] 섹션에서 정보를 로드합니다.
     SHEET_ID = st.secrets["gcp_service_account"]["sheet_id"]
     SHEET_NAME = st.secrets["gcp_service_account"]["sheet_name"]
 except Exception as e:
-    # Google Sheets Secrets 정보 로드 오류 발생 시 사용자에게 알림
     st.error(f"Google Sheets Secrets 정보 로드 오류: Streamlit Secrets에 [gcp_service_account] 섹션이 올바르게 설정되었는지 확인해주세요. 오류: {e}")
     st.stop()
 
@@ -70,9 +65,10 @@ pdf_files_map = {
 
 # --- Google Sheets 데이터 로드/쓰기 헬퍼 함수 (기존 로직 유지) ---
 
-@st.cache_data(ttl=300) # 5분 동안 캐시
+@st.cache_data(ttl=300) 
 def load_access_log_from_gsheets(sheet_id, sheet_name):
     """gspread의 기본 기능을 사용하여 Google Sheets에서 액세스 로그를 로드합니다."""
+    # 로직 생략 (기존과 동일)
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
@@ -86,32 +82,27 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
 
         return df
     except Exception as e:
-        # st.error(f"Google Sheets 연결 및 데이터 로드 오류: {e}") # 사용자에게 보이지 않게 처리
         return pd.DataFrame(columns=["login_time", "username", "status"])
 
 def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
     """gspread의 기본 기능을 사용하여 Google Sheets에 데이터프레임을 씁니다."""
+    # 로직 생략 (기존과 동일)
     try:
         creds = st.secrets["gcp_service_account"]
         gc = gspread.service_account_from_dict(creds)
         sh = gc.open_by_key(sheet_id)
         worksheet = sh.worksheet(sheet_name)
         
-        # DataFrame을 리스트 오브 리스트(LoL) 형태로 변환 (헤더 포함)
         values_to_write = [updated_data.columns.values.tolist()] + updated_data.values.tolist()
-        
-        # Google Sheets에 데이터 쓰기 (A1부터 시작)
         worksheet.update('A1', values_to_write)
-        
-        # 데이터 로드 캐시를 수동으로 지워 최신 데이터를 즉시 반영
         load_access_log_from_gsheets.clear()
 
     except Exception as e:
-        # st.warning(f"접속 기록 로깅 실패: {e}") # 디버깅용
         pass
 
 # --- Google Sheets 액세스 로그 기록 함수 ---
 def log_access(username, status):
+    # 로직 생략 (기존과 동일)
     try:
         data = load_access_log_from_gsheets(SHEET_ID, SHEET_NAME)
         
@@ -121,17 +112,13 @@ def log_access(username, status):
             "status": status
         }])
         
-        # 새 로그를 기존 데이터 위에 추가 (가장 최근 로그가 위로 오도록)
         updated_data = pd.concat([new_log, data], ignore_index=True)
-
-        # Google Sheets에 다시 쓰기
         write_access_log_to_gsheets(updated_data, SHEET_ID, SHEET_NAME)
 
     except Exception as e:
-        # st.warning(f"접속 기록 로깅 실패: {e}") # 디버깅용
         pass
 
-# --- 대시보드 헬퍼 함수 ---
+# --- PDF 표시 헬퍼 함수 ---
 
 @st.cache_data
 def display_pdf(file_path):
@@ -140,11 +127,10 @@ def display_pdf(file_path):
     Streamlit Cloud 환경에서 정적 파일 접근 방식을 사용합니다.
     """
     if not os.path.exists(file_path):
-         # 파일이 없을 경우 에러 메시지를 반환
+         # 파일 경로 오류 시 HTML 대신 None과 에러 메시지 반환
          return None, f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
     # 파일 경로를 iframe의 src로 직접 사용
-    # Streamlit Cloud는 루트 경로에 있는 파일에 웹 접근을 허용합니다.
     pdf_display = f'''
     <iframe src="{file_path}"
     width="100%" height="1000" type="application/pdf"></iframe>
@@ -158,32 +144,26 @@ def color_negative_red(val):
     return f'color: {color}'
 
 # --- 데이터 로드 및 클리닝 함수 ---
-@st.cache_data(ttl=3600) # 1시간 동안 캐시
+@st.cache_data(ttl=3600) 
 def load_data(file_path):
-    # 파일 존재 여부 확인 (배포 환경)
+    # 로직 생략 (기존과 동일)
     if not os.path.exists(file_path):
         st.error(f"오류: 데이터 파일 '{file_path}'을 찾을 수 없습니다. GitHub에 파일을 포함해야 합니다.")
         st.stop()
         
     try:
-        # 엑셀 파일 불러오기
         df = pd.read_excel(file_path, sheet_name=0, engine="openpyxl")
     except Exception as e:
         st.error(f"오류: 엑셀 파일을 읽는 중 문제가 발생했습니다: {e}")
         st.stop()
 
-    # 결측 연도/월 제거 (최소한의 행 보장)
     df = df.dropna(subset=["연도", "월"]).copy()
-
-    # 데이터 클리닝 및 타입 변환 (콤마 제거 후 숫자형으로)
     for col in df.columns:
-        # 문자열을 처리하여 숫자형으로 변환
         if df[col].dtype == 'object':
             df[col] = df[col].astype(str).str.replace(',', '', regex=False).str.strip()
-        # 숫자형 변환 (변환 불가 시 NaN으로 처리)
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # 연월 열 생성 (Plotly용) - NaN 값 처리하여 astype(int) 오류 방지
+    # 연월 열 생성 (NaN 값 처리 포함)
     df["연월"] = pd.to_datetime(
         df["연도"].fillna(0).astype(int).astype(str) + 
         '-' + 
@@ -192,14 +172,11 @@ def load_data(file_path):
     )
     df["연월_str"] = df["연월"].dt.strftime('%Y-%m')
 
-    # 수강생 관련 컬럼을 정수형으로 변환
     student_metrics = ["오전", "방과후", "초등", "오후"]
     for col in student_metrics:
         if col in df.columns:
-            # 수강생 수 역시 안전하게 변환
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
-    # 수강생 합계 계산 (누계 제외 요청)
     if all(s in df.columns for s in student_metrics):
         df['총수강생'] = df[student_metrics].sum(axis=1)
 
@@ -209,39 +186,42 @@ def load_data(file_path):
 
 def login_form():
     """로그인 화면을 표시하고 사용자 인증을 처리합니다."""
-    # set_page_config() 제거 -> 최상단에서 한 번만 설정
     st.title("📊 재무 대시보드")
     st.subheader("로그인이 필요합니다.")
     st.markdown("---")
     
-    # 로그인 화면을 중앙에 배치하기 위해 컬럼 사용
     col1, col2, col3 = st.columns([1, 2, 1]) 
     
-    with col2: # 중앙 컬럼에 폼 배치
+    with col2: 
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center;'>사용자 인증</h4>", unsafe_allow_html=True)
+            
+            # --- Streamlit Form 시작 ---
             with st.form("login_form", clear_on_submit=True):
                 username = st.text_input("아이디 (이름)", placeholder="예: 홍길동")
                 password = st.text_input("비밀번호 (생년월일 6자리)", type="password", placeholder="예: 900709")
                 login_button = st.form_submit_button("로그인")
 
+                # 로그인 버튼이 클릭되었을 때만 처리
                 if login_button:
                     # 딕셔너리에서 인증 정보 확인
                     if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+                        # 1. 상태만 설정하고, 앱이 다음 렌더링 사이클에서 상태 변화를 감지하도록 합니다.
                         st.session_state['authenticated'] = True
                         st.session_state['username'] = username
                         st.session_state['login_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         
-                        # 성공 메시지 표시 후 로그 기록
-                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다. 잠시 후 대시보드로 이동합니다.")
+                        # 2. 성공 메시지를 출력
+                        st.success(f"환영합니다, {username}님! 로그인에 성공했습니다.")
                         log_access(username, "SUCCESS")
-                        time.sleep(1) # 잠시 대기
-                        # Streamlit 앱을 새로고침하여 대시보드 화면으로 전환
-                        st.rerun()
+                        
+                        # st.rerun()을 호출하지 않고 자연스럽게 다음 실행으로 넘어갑니다.
+                        # Form 내부에서는 st.rerun()이 간혹 세션 상태를 초기화시키는 문제를 일으킵니다.
                     else:
-                        # 실패 메시지 표시 후 로그 기록
                         st.error("로그인 정보가 올바르지 않습니다. 아이디와 비밀번호를 확인해주세요.")
                         log_access(username, "FAILED")
+            # --- Streamlit Form 끝 ---
+
 
 def logout():
     """로그아웃 처리 및 로그 기록."""
@@ -255,20 +235,12 @@ def logout():
 
 # --- 대시보드 메인 페이지 ---
 def main_dashboard(df):
-    # st.set_page_config(layout="wide") # --> 제거됨: 최상단에서 이미 설정됨.
     st.title("📊 주식회사 비에이 재무 대시보드")
     
-    # ---------------------
-    # 5. Streamlit 레이아웃
-    # ---------------------
-
     st.sidebar.header("메뉴 선택")
-    # 사용자 정보 사이드바 하단에 표시
     st.sidebar.markdown(f"---")
     st.sidebar.markdown(f"**현재 사용자**: **{st.session_state['username']}**")
     st.sidebar.markdown(f"**로그인 시각**: {st.session_state['login_time']}")
-    
-    # 로그아웃 버튼
     st.sidebar.button("로그아웃", on_click=logout)
 
     menu = st.sidebar.radio("보고서 선택", ["재무상태표", "손익계산서", "수강생 흐름", "수입지출장부 흐름"])
@@ -280,36 +252,32 @@ def main_dashboard(df):
     # ---------------------
     if menu in ["재무상태표", "손익계산서"]:
         
-        # PDF 파일도 배포 환경에서는 경로를 조정해야 합니다.
         years = sorted(list(set(key.split('_')[1].split('.')[0] for key in pdf_files_map.keys() if menu in key)), reverse=True)
         
         if not years:
-            st.error(f"오류: {menu}에 해당하는 PDF 파일 정보가 없습니다.")
+            st.error(f"오류: {menu}에 해당하는 PDF 파일 정보가 없습니다. 파일 이름을 확인해주세요.")
             return
 
         year = st.selectbox("연도 선택", years)
         
-        # 파일 이름 찾기
         pdf_file_key = f"{menu}_{year}.pdf"
         pdf_file = pdf_files_map.get(pdf_file_key)
         
         st.subheader(f"📄 {menu} ({year}년도)")
         
         if pdf_file:
-            # Base64 인코딩을 제거하고 파일 경로를 사용하는 방식으로 변경
             pdf_content_html, error_message = display_pdf(pdf_file)
             
             if pdf_content_html:
-                # components.html을 사용하여 iframe을 격리된 환경에 삽입 (Chrome 보안 차단 우회)
-                # height와 width를 iframe 내부 HTML에 이미 지정했으므로, 여기서 다시 지정할 필요는 없지만,
-                # Streamlit의 components.html은 컨테이너 높이를 설정해주는 역할도 하므로 유지합니다.
+                # components.html을 사용하여 iframe 삽입
                 components.html(pdf_content_html, height=1000, scrolling=True)
             else:
-                # 에러 메시지 출력 (파일 없음 등)
+                # display_pdf에서 에러가 발생한 경우 에러 메시지 출력
                 st.error(error_message)
         else:
             st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
+    # ... [나머지 수강생 흐름 및 수입지출장부 흐름 로직은 동일]
     elif menu == "수강생 흐름":
         st.subheader("📈 월별 수강생 인원수 흐름")
 
@@ -318,7 +286,6 @@ def main_dashboard(df):
             st.error("데이터 파일에 유효한 월별 데이터가 없습니다.")
             return
 
-        # 기본 슬라이더 값 설정 (가장 오래된 월과 가장 최근 월)
         selected_range = st.select_slider(
             "기간 선택",
             options=unique_months,
@@ -333,16 +300,13 @@ def main_dashboard(df):
         available_students = [s for s in student_metrics if s in df_filtered.columns]
         
         if "총수강생" in df_filtered.columns:
-            # 1. 월별 선 그래프
             st.markdown("#### 수강생 인원수 추이")
-            
-            # '총수강생'만 포함 (누계 제외)
             line_cols = available_students + ["총수강생"]
             
             df_line_plot = pd.melt(
                 df_filtered,
                 id_vars=["연월"],
-                value_vars=[col for col in line_cols if col in df_filtered.columns], # 존재하는 컬럼만 선택
+                value_vars=[col for col in line_cols if col in df_filtered.columns], 
                 var_name="수강생 유형",
                 value_name="인원수"
             )
@@ -360,12 +324,11 @@ def main_dashboard(df):
             fig_line.update_layout(hovermode="x unified")
             st.plotly_chart(fig_line, use_container_width=True)
 
-            # 2. 누적 면적 그래프 (구성 비율)
             st.markdown("#### 월별 수강생 구성 비율")
             fig_area = px.area(
                 df_filtered,
                 x="연월",
-                y=[col for col in available_students if col in df_filtered.columns], # 존재하는 컬럼만 선택
+                y=[col for col in available_students if col in df_filtered.columns], 
                 labels={"value": "인원수", "variable": "수강생 유형"},
                 hover_data={"연월_str": True}
             )
@@ -373,13 +336,10 @@ def main_dashboard(df):
             fig_area.update_layout(hovermode="x unified")
             st.plotly_chart(fig_area, use_container_width=True)
 
-            # 3. 데이터 표
             st.markdown("#### 수강생 인원수 데이터")
-            # '총수강생누계' 제외
             df_table_cols = ["연도", "월"] + [col for col in line_cols if col in df_filtered.columns] 
             df_table_students = df_filtered[df_table_cols].copy()
             
-            # Ensure that numeric columns are integers before formatting
             numeric_cols_to_int = [col for col in df_table_students.columns if col not in ["연도", "월"]]
             df_table_students[numeric_cols_to_int] = df_table_students[numeric_cols_to_int].astype(int, errors='ignore')
             
@@ -407,12 +367,10 @@ def main_dashboard(df):
 
         df_filtered = df[(df["연월_str"] >= start_date) & (df["연월_str"] <= end_date)].copy()
 
-        # 누계 계산 (요청된 로직 유지)
         cumulative_cols = ["총안병규입금", "총대출"]
         for col in cumulative_cols:
             if col in df_filtered.columns:
                 df_filtered[f"{col}누계"] = df_filtered[col].fillna(0).cumsum()
-            # 누계 컬럼이 없을 경우, df_filtered에 추가하지 않아 에러를 방지
 
         all_metrics = ["총입금", "총출금", "총차액", "총잔액", "총매출", "영업매출", "기타매출", "총비용", "고정비용", "변동비용", "총영업이익", "총안병규입금", "총대출"]
         available_metrics = [m for m in all_metrics if m in df.columns]
@@ -420,22 +378,19 @@ def main_dashboard(df):
         selected_metrics = st.multiselect(
             "그래프에 표시할 지표 선택", 
             available_metrics, 
-            default=["총잔액", "총영업이익"] # 기본값 설정
+            default=["총잔액", "총영업이익"] 
         )
         
         final_cols_for_plot = []
         for m in selected_metrics:
             is_cumulative = False
-            # 누계 컬럼 확인 및 추가
             if m in cumulative_cols:
                 cumulative_name = f"{m}누계"
                 if cumulative_name in df_filtered.columns:
                     final_cols_for_plot.append(cumulative_name)
                     is_cumulative = True
             
-            # 원래 컬럼 추가 (누계가 아닌 경우 또는 누계 외에 월별 값도 보고 싶은 경우)
             if m in df_filtered.columns:
-                # 월별 값과 누계 값이 동시에 선택되지 않도록 로직 강화
                 if not is_cumulative or m not in final_cols_for_plot:
                      final_cols_for_plot.append(m)
 
@@ -489,9 +444,8 @@ if st.session_state["authenticated"]:
     if df_main is not None and not df_main.empty:
         main_dashboard(df_main)
     else:
-        # 데이터 로드 실패 시 에러는 load_data 내부에서 이미 표시됨
         st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요.")
     
 else:
-    # 로그인 폼 표시
+    # 인증 실패 시 로그인 폼 표시
     login_form()
