@@ -6,7 +6,7 @@ import io
 import json
 import gspread 
 import plotly.express as px
-import base64 # Base64는 사용하지 않지만 임포트는 남겨둡니다.
+import base64 # Base64 임포트 필수
 from datetime import datetime
 import os
 import time
@@ -130,20 +130,28 @@ def log_access(username, status):
 @st.cache_data
 def display_pdf(file_path):
     """
-    PDF 파일을 Base64 인코딩 없이 직접 경로를 사용하여 iframe에 표시합니다.
-    (대용량 파일에 대한 브라우저 보안 제한 우회)
+    PDF 파일을 Base64로 인코딩하여 iframe에 표시합니다.
+    Streamlit Cloud 환경에서 가장 안정적인 방법입니다.
     """
     if not os.path.exists(file_path):
          # 파일이 없을 경우 에러 메시지를 반환
-         return f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
+         return None, f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
-    # 파일 경로를 iframe의 src로 직접 사용
-    pdf_display = f'''
-    <iframe src="{file_path}"
-    width="100%" height="1000" type="application/pdf"></iframe>
-    '''
-    # HTML 문자열 반환
-    return pdf_display
+    try:
+        # 1. PDF 파일을 이진 모드로 읽고 Base64로 인코딩
+        with open(file_path, "rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+
+        # 2. iframe에 Data URL 형식으로 삽입
+        pdf_display = f'''
+        <iframe src="data:application/pdf;base64,{base64_pdf}"
+        width="100%" height="1000" type="application/pdf"></iframe>
+        '''
+        # HTML 문자열 반환
+        return pdf_display, None
+    except Exception as e:
+        return None, f"오류: PDF 파일을 읽거나 인코딩하는 중 문제가 발생했습니다: {e}"
+
 
 # 음수 값을 빨간색으로 표시하는 함수
 def color_negative_red(val):
@@ -285,16 +293,15 @@ def main_dashboard(df):
         st.subheader(f"📄 {menu} ({year}년도)")
         
         if pdf_file:
-            pdf_content = display_pdf(pdf_file)
+            # Base64 인코딩된 HTML 내용과 에러 메시지를 함께 받음
+            pdf_content_html, error_message = display_pdf(pdf_file)
             
-            # --- 수정된 로직: HTML 문자열을 컴포넌트 대신 st.markdown으로 렌더링 ---
-            if pdf_content.startswith("<iframe"):
-                # iframe HTML 코드를 HTML로 렌더링 (unsafe_allow_html=True 사용)
-                st.markdown(pdf_content, unsafe_allow_html=True) 
+            if pdf_content_html:
+                # HTML 코드를 Streamlit에 삽입하여 PDF 뷰어 표시
+                st.markdown(pdf_content_html, unsafe_allow_html=True)
             else:
-                # 에러 메시지인 경우 (파일 없음 등)
-                st.error(pdf_content)
-            # ----------------------------------------------------------------------
+                # 에러 메시지 출력 (파일 없음, 인코딩 오류 등)
+                st.error(error_message)
         else:
             st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
