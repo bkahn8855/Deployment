@@ -4,8 +4,7 @@ import numpy as np
 import io
 import json
 import gspread 
-# gspread-dataframe의 임포트 오류 해결: get_dataframe 대신 get_dataframe_from_sheet 사용
-from gspread_dataframe import get_dataframe_from_sheet, set_with_dataframe 
+# gspread-dataframe 임포트 제거. gspread 기본 기능만 사용.
 from datetime import datetime
 
 # --- 설정 및 초기화 ---
@@ -48,7 +47,7 @@ pdf_files = {
 # @st.cache_data를 사용하여 Google Sheets 데이터를 캐시하는 함수
 @st.cache_data(ttl=300) # 5분 동안 캐시
 def load_access_log_from_gsheets(sheet_id, sheet_name):
-    """gspread를 사용하여 Google Sheets에서 액세스 로그를 로드합니다."""
+    """gspread의 기본 기능을 사용하여 Google Sheets에서 액세스 로그를 로드합니다."""
     try:
         # Streamlit Secrets에서 인증 정보 로드 (gcp_service_account 섹션 사용)
         creds = st.secrets["gcp_service_account"]
@@ -60,19 +59,24 @@ def load_access_log_from_gsheets(sheet_id, sheet_name):
         sh = gc.open_by_key(sheet_id)
         worksheet = sh.worksheet(sheet_name)
         
-        # 워크시트 내용을 DataFrame으로 변환 (함수 이름 수정 반영)
-        df = get_dataframe_from_sheet(worksheet, header=1, dtype=str)
+        # gspread의 get_all_records()는 첫 번째 행을 헤더로 사용하여 dict 리스트를 반환합니다.
+        data_records = worksheet.get_all_records()
         
-        # DataFrame의 인덱스를 0부터 시작하도록 리셋 (옵션)
-        df.index = range(len(df))
-            
+        # data_records를 DataFrame으로 변환
+        df = pd.DataFrame(data_records)
+        
+        # 데이터가 없을 경우 (예: 시트가 비어있는 경우) 빈 DataFrame 반환 방지
+        if df.empty:
+             return pd.DataFrame(columns=["login_time", "username", "status"])
+
         return df
     except Exception as e:
         st.error(f"Google Sheets 연결 및 데이터 로드 오류: {e}")
-        return pd.DataFrame() # 오류 시 빈 데이터프레임 반환
+        # 오류 시 필터링된 빈 DataFrame 반환 (로그 기록 함수가 에러나지 않도록)
+        return pd.DataFrame(columns=["login_time", "username", "status"])
 
 def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
-    """gspread를 사용하여 Google Sheets에 데이터프레임을 씁니다."""
+    """gspread의 기본 기능을 사용하여 Google Sheets에 데이터프레임을 씁니다."""
     try:
         # Streamlit Secrets에서 인증 정보 로드 (gcp_service_account 섹션 사용)
         creds = st.secrets["gcp_service_account"]
@@ -84,9 +88,11 @@ def write_access_log_to_gsheets(updated_data, sheet_id, sheet_name):
         sh = gc.open_by_key(sheet_id)
         worksheet = sh.worksheet(sheet_name)
         
-        # DataFrame을 Google Sheets에 쓰기 (헤더 포함)
-        # row=1, col=1은 A1 셀부터 쓰기 시작함을 의미합니다.
-        set_with_dataframe(worksheet, updated_data, row=1, col=1, include_index=False, include_column_header=True)
+        # DataFrame을 리스트 오브 리스트(LoL) 형태로 변환 (gspread에 쓰기 위한 포맷)
+        values_to_write = [updated_data.columns.values.tolist()] + updated_data.values.tolist()
+        
+        # Google Sheets에 데이터 쓰기 (A1부터 시작)
+        worksheet.update('A1', values_to_write)
         
         # 데이터 로드 캐시를 수동으로 지워 최신 데이터를 즉시 반영
         load_access_log_from_gsheets.clear()
