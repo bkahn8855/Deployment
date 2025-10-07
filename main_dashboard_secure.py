@@ -134,14 +134,15 @@ def display_pdf(file_path):
     (대용량 파일에 대한 브라우저 보안 제한 우회)
     """
     if not os.path.exists(file_path):
-         return f"오류: {file_path} 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
+         # 파일이 없을 경우 에러 메시지를 반환
+         return f"오류: **{file_path}** 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인해주세요."
         
     # 파일 경로를 iframe의 src로 직접 사용
     pdf_display = f'''
     <iframe src="{file_path}"
     width="100%" height="1000" type="application/pdf"></iframe>
     '''
-    # 참고: Streamlit Cloud 환경에서는 루트 경로에 있는 파일에 웹 브라우저가 직접 접근 가능합니다.
+    # HTML 문자열 반환
     return pdf_display
 
 # 음수 값을 빨간색으로 표시하는 함수
@@ -286,12 +287,14 @@ def main_dashboard(df):
         if pdf_file:
             pdf_content = display_pdf(pdf_file)
             
-            # components.html을 사용하여 iframe을 삽입
+            # --- 수정된 로직: HTML 문자열을 컴포넌트 대신 st.markdown으로 렌더링 ---
             if pdf_content.startswith("<iframe"):
-                components.html(pdf_content, height=1000, scrolling=True)
+                # iframe HTML 코드를 HTML로 렌더링 (unsafe_allow_html=True 사용)
+                st.markdown(pdf_content, unsafe_allow_html=True) 
             else:
                 # 에러 메시지인 경우 (파일 없음 등)
                 st.error(pdf_content)
+            # ----------------------------------------------------------------------
         else:
             st.warning(f"경고: {pdf_file_key}에 해당하는 PDF 파일을 찾을 수 없습니다. GitHub에 업로드되었는지 확인하세요.")
 
