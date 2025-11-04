@@ -29,7 +29,7 @@ if 'login_time' not in st.session_state:
     st.session_state['login_time'] = None
 
 # --- 파일 경로 설정 ---
-data_file_path = "비용 정리_250830.xlsx" 
+data_file_path = "비용 정리_251031.xlsx" 
 pdf_files_map = {
     "손익계산서_2022.pdf": "손익계산서_2022.pdf", "손익계산서_2023.pdf": "손익계산서_2023.pdf", 
     "손익계산서_2024.pdf": "손익계산서_2024.pdf", "재무상태표_2022.pdf": "재무상태표_2022.pdf", 
