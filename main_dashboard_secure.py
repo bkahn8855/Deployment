@@ -204,20 +204,11 @@ else:
     st.set_page_config(layout="wide", page_title="재무 대시보드")
     st.title("📊 주식회사 비에이 재무 대시보드")
     
-    st.cache_data.clear()
+    # st.cache_data.clear() # 캐시때문에 이전버전이 보이면 주석 풀고 캐시 클리어
     
     # 캐시된 데이터 로드
     df_main = load_data(data_file_path)
-    
-    st.write("파일명:", data_file_path)
-    st.write("절대경로:", os.path.abspath(data_file_path))
-    st.write(
-    "수정시간:",
-    datetime.fromtimestamp(os.path.getmtime(data_file_path))
-)
-    
-    st.write([repr(c) for c in df_main.columns])
-    
+        
     if df_main is None or df_main.empty:
         st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (인증 유지)")
         st.stop()
@@ -359,10 +350,8 @@ else:
                 df_filtered[f"{col} 누계"] = df_filtered[col].fillna(0).cumsum()
 
         all_metrics = ["법인 입금", "법인 출금", "법인 차액", "법인 잔액", "법인 매출", "법인 비용", "법인 영업이익", "법인 안병규 입금", "법인 안병규 입금 누계", "법인 대출", "법인 대출 누계"]
-        st.write(df_filtered.columns.tolist())
         available_metrics = [m for m in all_metrics if m in df_filtered.columns]
         
-        st.write("available_metrics =", available_metrics)
         selected_metrics = st.multiselect(
             "그래프에 표시할 지표 선택", 
             available_metrics, 
