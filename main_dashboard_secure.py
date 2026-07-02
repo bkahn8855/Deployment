@@ -98,30 +98,26 @@ def logout():
 
 # --- 💡 수정된 PDF 표시 함수: st.components.v1.html 사용 ---
 def display_pdf(file_path):
-    """PDF 파일을 Base64로 인코딩하여 브라우저에 표시"""
+    """PDF 파일을 다운로드할 수 있는 버튼을 제공합니다 (Streamlit Cloud 호환)."""
     if not os.path.exists(file_path):
-        st.warning(f"오류: **{file_path}** 파일을 찾을 수 없습니다.")
+        st.warning(f"오류: **{file_path}** 파일을 찾을 수 없습니다. 파일 경로를 확인해주세요.")
         return
 
     try:
         with open(file_path, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+            pdf_bytes = f.read()
+            base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
 
-        pdf_html = f"""
-        <iframe
-            src="data:application/pdf;base64,{base64_pdf}"
-            width="100%"
-            height="1000"
-            type="application/pdf"
-            style="border:none;">
-        </iframe>
-        """
-
-        components.html(
-            pdf_html,
-            height=1000,
-            scrolling=True
+        file_name = os.path.basename(file_path)
+        st.download_button(
+            label=f"📥 {file_name} 다운로드",
+            data=pdf_bytes,
+            file_name=file_name,
+            mime="application/pdf",
+            use_container_width=True
         )
+
+        st.info("브라우저 정책(특히 Chrome)으로 인해 PDF 미리보기가 차단될 수 있어, 대신 다운로드 방식으로 제공합니다.")
 
     except Exception as e:
         st.error(f"PDF를 로드하는 중 오류가 발생했습니다: {e}")
