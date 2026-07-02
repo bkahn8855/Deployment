@@ -205,6 +205,7 @@ else:
     
     # 캐시된 데이터 로드
     df_main = load_data(data_file_path)
+    st.write([repr(c) for c in df_main.columns])
     
     if df_main is None or df_main.empty:
         st.error("대시보드 데이터를 로드하지 못했습니다. 파일과 내용을 확인해주세요. (인증 유지)")
