@@ -10,6 +10,7 @@ import base64
 from datetime import datetime
 import os
 import time
+from datetime import datetime
 
 # ----------------------------------------------------
 # 1. 사용자 인증 정보
@@ -205,6 +206,14 @@ else:
     
     # 캐시된 데이터 로드
     df_main = load_data(data_file_path)
+    
+    st.write("파일명:", data_file_path)
+    st.write("절대경로:", os.path.abspath(data_file_path))
+    st.write(
+    "수정시간:",
+    datetime.fromtimestamp(os.path.getmtime(data_file_path))
+)
+    
     st.write([repr(c) for c in df_main.columns])
     
     if df_main is None or df_main.empty:
