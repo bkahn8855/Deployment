@@ -341,18 +341,18 @@ else:
 
         df_filtered = df_main[(df_main["연월_str"] >= start_date) & (df_main["연월_str"] <= end_date)].copy()
 
-        cumulative_cols = ["총안병규입금", "총대출"]
+        cumulative_cols = ["법인 안병규 입금", "법인 대출"]
         for col in cumulative_cols:
             if col in df_filtered.columns:
                 df_filtered[f"{col}누계"] = df_filtered[col].fillna(0).cumsum()
 
-        all_metrics = ["총입금", "총출금", "총차액", "총잔액", "총매출", "영업매출", "기타매출", "총비용", "고정비용", "변동비용", "총영업이익", "총안병규입금", "총대출"]
+        all_metrics = ["법인 입금", "법인 출금", "법인 차액", "법인 잔액", "법인 매출", "법인 비용", "법인 영업이익", "법인 안병규 입금", "법인 대출"]
         available_metrics = [m for m in all_metrics if m in df_main.columns]
         
         selected_metrics = st.multiselect(
             "그래프에 표시할 지표 선택", 
             available_metrics, 
-            default=["총잔액", "총영업이익"],
+            default=["법인 매출", "법인 영업이익"],
             key="metric_multiselect"
         )
         
