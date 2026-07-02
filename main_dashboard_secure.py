@@ -204,9 +204,7 @@ else:
     st.set_page_config(layout="wide", page_title="재무 대시보드")
     st.title("📊 주식회사 비에이 재무 대시보드")
     
-    df_test = pd.read_excel(data_file_path, nrows=0)
-
-    st.write(df_test.columns.tolist())
+    st.cache_data.clear()
     
     # 캐시된 데이터 로드
     df_main = load_data(data_file_path)
