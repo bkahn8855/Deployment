@@ -347,8 +347,10 @@ else:
                 df_filtered[f"{col} 누계"] = df_filtered[col].fillna(0).cumsum()
 
         all_metrics = ["법인 입금", "법인 출금", "법인 차액", "법인 잔액", "법인 매출", "법인 비용", "법인 영업이익", "법인 안병규 입금", "법인 안병규 입금 누계", "법인 대출", "법인 대출 누계"]
+        st.write(df_filtered.columns.tolist())
         available_metrics = [m for m in all_metrics if m in df_filtered.columns]
         
+        st.write("available_metrics =", available_metrics)
         selected_metrics = st.multiselect(
             "그래프에 표시할 지표 선택", 
             available_metrics, 
